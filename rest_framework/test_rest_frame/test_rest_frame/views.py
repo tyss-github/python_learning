@@ -1,52 +1,54 @@
 #coding:utf-8
 
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.renderers import JSONRenderer
-from rest_framework.parsers import JSONParser
 from .models import Article
-from .serializers import ArticleSerializer
+from .serializers import ArticleSerializer, UserSerializer
+from .permissions import IsOwnerOrReadOnly
+from rest_framework import generics
+from rest_framework import permissions
+from rest_framework import renderers
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.reverse import reverse
+from django.contrib.auth.models import User
 
-@csrf_exempt
-def article_list(request):
-    """
-    List all code articles, or create a new article.
-    """
-    if request.method == 'GET':
-        articles = Article.objects.all()
-        serializer = ArticleSerializer(articles, many=True)
-        return JsonResponse(serializer.data, safe=False)
 
-    elif request.method == 'POST':
-        data = JSONParser().parse(request)
-        serializer = ArticleSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
+class ArticleList(generics.ListCreateAPIView):
+    queryset = Article.objects.all()
+    serializer_class = ArticleSerializer
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 
-@csrf_exempt
-def article_detail(request, pk):
-    """
-    Retrieve, update or delete a code article.
-    """
-    try:
-        article = Article.objects.get(pk=pk)
-    except Article.DoesNotExist:
-        return HttpResponse(status=404)
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
-    if request.method == 'GET':
-        serializer = ArticleSerializer(article)
-        return JsonResponse(serializer.data)
 
-    elif request.method == 'PUT':
-        data = JSONParser().parse(request)
-        serializer = ArticleSerializer(article, data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data)
-        return JsonResponse(serializer.errors, status=400)
+class ArticleDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Article.objects.all()
+    serializer_class = ArticleSerializer
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly,)
 
-    elif request.method == 'DELETE':
-        article.delete()
-        return HttpResponse(status=204)
+
+class ArticleHighlight(generics.GenericAPIView):
+    queryset = Article.objects.all()
+    renderer_classes = (renderers.StaticHTMLRenderer,)
+
+    def get(self, request, *args, **kwargs):
+        article = self.get_object()
+        return Response(article.highlighted)
+
+
+class UserList(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+class UserDetail(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'users': reverse('user-list', request=request, format=format),
+        'articles': reverse('article-list', request=request, format=format)
+    })

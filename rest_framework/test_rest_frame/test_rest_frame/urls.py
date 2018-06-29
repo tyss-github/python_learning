@@ -17,30 +17,17 @@ Including another URLconf
 """
 
 from django.conf.urls import url, include
-from django.contrib.auth.models import User
-from rest_framework import routers, serializers, viewsets
-from .views import article_list, article_detail
+from rest_framework.urlpatterns import format_suffix_patterns
+from rest_framework.routers import DefaultRouter
+from .viewsets import UserViewSet
+from .viewsets import ArticleViewSet
 
-# Serializers define the API representation.
-class UserSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = User
-        fields = ('url', 'username', 'email', 'is_staff')
-
-# ViewSets define the view behavior.
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-# Routers provide an easy way of automatically determining the URL conf.
-router = routers.DefaultRouter()
+# Create a router and register our viewsets with it.
+router = DefaultRouter()
+router.register(r'articles', ArticleViewSet)
 router.register(r'users', UserViewSet)
 
-# Wire up our API using automatic URL routing.
-# Additionally, we include login URLs for the browsable API.
+# The API URLs are now determined automatically by the router.
 urlpatterns = [
-    url(r'^', include(router.urls)),
-    url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
-    url(r'^articles/$', article_list),
-    url(r'^articles/(?P<pk>[0-9]+)/$', article_detail),
+    url(r'^', include(router.urls))
 ]
